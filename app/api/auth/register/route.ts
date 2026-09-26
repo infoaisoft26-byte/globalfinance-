@@ -20,15 +20,30 @@ async function nextReferralCode() {
   throw new Error('Unable to allocate referral code');
 }
 
+function configurationError(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code ?? '') : '';
+  return (
+    message.includes('DATABASE_URL is not configured') ||
+    message.includes('AUTH_SECRET must be at least 32 characters') ||
+    code === '42P01' ||
+    code === '3D000' ||
+    code === '28P01' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND'
+  );
+}
+
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Invalid registration data' }, { status: 400 });
-  const { fullName, email, password, referral } = parsed.data;
-  const normalizedEmail = email.trim().toLowerCase();
-  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-  const referralCode = await nextReferralCode();
 
   try {
+    const { fullName, email, password, referral } = parsed.data;
+    const normalizedEmail = email.trim().toLowerCase();
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const referralCode = await nextReferralCode();
+
     const user = await withTransaction(async (client) => {
       let referredBy: string | null = null;
       if (referral) {
@@ -46,10 +61,18 @@ export async function POST(request: Request) {
       await client.query(`INSERT INTO audit_logs (actor_user_id,action,entity_type,entity_id) VALUES ($1,'USER_REGISTERED','user',$1::text)`, [id]);
       return created.rows[0];
     });
+
     await createSession({ id: user.id, role: user.role });
     return NextResponse.json({ ok: true, referralCode: user.referral_code }, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && error.message === 'INVALID_REFERRAL') return NextResponse.json({ error: 'Referral code not found' }, { status: 400 });
+    if (error instanceof Error && error.message === 'INVALID_REFERRAL') {
+      return NextResponse.json({ error: 'Referral code not found' }, { status: 400 });
+    }
+    if (configurationError(error)) {
+      console.error('Registration service configuration error:', error);
+      return NextResponse.json({ error: 'Registration service is not configured yet. Please contact the administrator.' }, { status: 503 });
+    }
+    console.error('Registration failed:', error);
     return NextResponse.json({ error: 'Registration could not be completed' }, { status: 409 });
   }
 }
