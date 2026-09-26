@@ -1,0 +1,55 @@
+import { NextResponse } from 'next/server';
+import argon2 from 'argon2';
+import { z } from 'zod';
+import { db, withTransaction } from '@/lib/db';
+import { createSession } from '@/lib/auth';
+
+const schema = z.object({
+  fullName: z.string().min(2).max(120),
+  email: z.string().email().max(200),
+  password: z.string().min(10).max(200),
+  referral: z.string().regex(/^GF[0-9]{6}$/).optional(),
+});
+
+async function nextReferralCode() {
+  for (let i = 0; i < 10; i++) {
+    const code = `GF${Math.floor(100000 + Math.random() * 900000)}`;
+    const exists = await db.query('SELECT 1 FROM users WHERE referral_code=$1', [code]);
+    if (exists.rowCount === 0) return code;
+  }
+  throw new Error('Unable to allocate referral code');
+}
+
+export async function POST(request: Request) {
+  const parsed = schema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid registration data' }, { status: 400 });
+  const { fullName, email, password, referral } = parsed.data;
+  const normalizedEmail = email.trim().toLowerCase();
+  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+  const referralCode = await nextReferralCode();
+
+  try {
+    const user = await withTransaction(async (client) => {
+      let referredBy: string | null = null;
+      if (referral) {
+        const sponsor = await client.query('SELECT id FROM users WHERE referral_code=$1', [referral]);
+        if (sponsor.rowCount !== 1) throw new Error('INVALID_REFERRAL');
+        referredBy = sponsor.rows[0].id;
+      }
+      const created = await client.query(
+        `INSERT INTO users (email,password_hash,full_name,referral_code,referred_by)
+         VALUES ($1,$2,$3,$4,$5) RETURNING id,role,referral_code`,
+        [normalizedEmail, passwordHash, fullName.trim(), referralCode, referredBy]
+      );
+      const id = created.rows[0].id;
+      await client.query(`INSERT INTO wallets (user_id,wallet_type) VALUES ($1,'fund'),($1,'income')`, [id]);
+      await client.query(`INSERT INTO audit_logs (actor_user_id,action,entity_type,entity_id) VALUES ($1,'USER_REGISTERED','user',$1::text)`, [id]);
+      return created.rows[0];
+    });
+    await createSession({ id: user.id, role: user.role });
+    return NextResponse.json({ ok: true, referralCode: user.referral_code }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'INVALID_REFERRAL') return NextResponse.json({ error: 'Referral code not found' }, { status: 400 });
+    return NextResponse.json({ error: 'Registration could not be completed' }, { status: 409 });
+  }
+}
