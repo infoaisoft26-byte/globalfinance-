@@ -16,6 +16,7 @@ const groups = [
   ['Fund Withdrawal', '/transactional/withdrawal'],
   ['Reports', '/reports'],
   ['Support Ticket', '/support'],
+  ['Logout', '/logout'],
 ];
 
 export function DashboardShell({ children, userName, referralCode }: { children: React.ReactNode; userName: string; referralCode: string }) {
