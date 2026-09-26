@@ -3,10 +3,10 @@
 import { useState } from 'react';
 
 async function uploadPrivate(file: File, kind: 'identity'|'address') {
-  const presign = await fetch('/api/kyc/upload-url',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contentType:file.type,kind})});
+  const presign = await fetch('/api/kyc/upload-url',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contentType:file.type,kind,size:file.size})});
   if (!presign.ok) throw new Error((await presign.json()).error || 'Unable to prepare upload');
   const { uploadUrl, key } = await presign.json();
-  const put = await fetch(uploadUrl,{method:'PUT',headers:{'content-type':file.type},body:file});
+  const put = await fetch(uploadUrl,{method:'PUT',headers:{'content-type':file.type,'content-length':String(file.size)},body:file});
   if (!put.ok) throw new Error('Document upload failed');
   return key as string;
 }
