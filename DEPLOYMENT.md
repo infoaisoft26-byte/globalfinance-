@@ -41,12 +41,14 @@ Configure bucket CORS to permit PUT from the exact production web origin only. L
 Install dependencies, typecheck, build, migrate the database, then start the application:
 
 ```bash
-npm ci
+npm install --no-audit --no-fund
 npm run typecheck
 npm run build
 npm run db:migrate
 npm start
 ```
+
+After a `package-lock.json` is committed, production CI may switch to `npm ci` for deterministic installs.
 
 For Vercel or another serverless platform, configure `DATABASE_URL`, `AUTH_SECRET`, storage credentials and the application URL in the project environment. Use a PostgreSQL provider that supports the expected serverless connection pattern or pooling. Do not run the migration command from every request/runtime instance; run it as a controlled deployment step.
 
