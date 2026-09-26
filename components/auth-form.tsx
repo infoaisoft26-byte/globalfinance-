@@ -19,7 +19,7 @@ export function AuthForm() {
     const res = await fetch(`/api/auth/${mode}`, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) { setError(body.error ?? 'Request failed'); setBusy(false); return; }
-    router.push('/dashboard'); router.refresh();
+    router.push(mode === 'login' && body.role === 'admin' ? '/admin' : '/dashboard'); router.refresh();
   }
 
   return <div className="gf-card w-full max-w-md p-7">
