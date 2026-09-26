@@ -12,7 +12,7 @@ export DATABASE_URL='postgres://global_finance:use-a-strong-secret@127.0.0.1:543
 npm run db:migrate
 ```
 
-For managed PostgreSQL, set the provider-issued `DATABASE_URL` in the application environment and run `npm run db:migrate` once per deployment when schema changes are introduced.
+For managed PostgreSQL, provision the database with your provider, set the provider-issued `DATABASE_URL` in the application environment, and run `npm run db:migrate` once per controlled schema deployment. The repository cannot create an external managed database without that provider account/connection information.
 
 Do not expose port 5432 publicly. Restrict database network access to the application/runtime and administrative maintenance sources.
 
