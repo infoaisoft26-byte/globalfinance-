@@ -1,11 +1,13 @@
 import { Pool, PoolClient } from 'pg';
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error('DATABASE_URL is not configured');
-
-export const db = new Pool({ connectionString, max: 10, idleTimeoutMillis: 30_000 });
+export const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+});
 
 export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not configured');
   const client = await db.connect();
   try {
     await client.query('BEGIN');
