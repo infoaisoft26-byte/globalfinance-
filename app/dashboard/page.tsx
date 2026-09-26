@@ -5,6 +5,8 @@ import { DashboardShell } from '@/components/dashboard-shell';
 
 const money = (paise: number | string | bigint) => `₹ ${(Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+type BreakdownRow = [string, number | string | bigint | null | undefined];
+
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect('/');
@@ -56,11 +58,11 @@ export default async function DashboardPage() {
     ['Available Fund', money(walletMap.fund ?? 0), 'gf-blue'], ['Available Balance', money(walletMap.income ?? 0), 'gf-green'],
     ['Total Income', money(i.total_income ?? 0), 'gf-green'], ['Total Withdrawal', money(i.total_withdrawal ?? 0), 'gf-red'],
   ];
-  const basic = [
+  const basic: BreakdownRow[] = [
     ['Joining Bonus', i.joining_bonus], ['Referral Income', i.basic_referral], ['Today ROI Income', i.today_basic_roi],
     ['Today Level Income', i.today_basic_level], ['Total ROI Income', i.total_basic_roi], ['Total Level Income', i.total_basic_level],
   ];
-  const fd = [
+  const fd: BreakdownRow[] = [
     ['Today ROI Income', i.today_fd_roi], ['Today Level Income', i.today_fd_level], ['Total ROI Income', i.total_fd_roi],
     ['Total Level Income', i.total_fd_level], ['Referral Income', i.fd_referral], ['FD Released', i.fd_released], ['Total Salary', i.total_salary],
   ];
@@ -73,6 +75,6 @@ export default async function DashboardPage() {
   </DashboardShell>;
 }
 
-function Breakdown({ title, rows }: { title: string; rows: [string, unknown][] }) {
-  return <section className="mt-6"><h2 className="mb-3 text-lg font-bold">{title}</h2><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{rows.map(([label, value]) => <div key={label} className="gf-card p-4"><div className="gf-label">{label}</div><div className="gf-value">{money(value as number ?? 0)}</div></div>)}</div></section>;
+function Breakdown({ title, rows }: { title: string; rows: BreakdownRow[] }) {
+  return <section className="mt-6"><h2 className="mb-3 text-lg font-bold">{title}</h2><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{rows.map(([label, value]) => <div key={label} className="gf-card p-4"><div className="gf-label">{label}</div><div className="gf-value">{money(value ?? 0)}</div></div>)}</div></section>;
 }
