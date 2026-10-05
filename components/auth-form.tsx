@@ -15,7 +15,7 @@ export function AuthForm() {
     const data = Object.fromEntries(new FormData(event.currentTarget).entries());
     const payload = mode === 'login'
       ? { email: data.email, password: data.password }
-      : { fullName: data.fullName, email: data.email, password: data.password, referral: data.referral || undefined };
+      : { fullName: data.fullName, mobileNumber: data.mobileNumber, email: data.email, password: data.password, referral: data.referral || undefined };
     const res = await fetch(`/api/auth/${mode}`, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) { setError(body.error ?? 'Request failed'); setBusy(false); return; }
@@ -26,6 +26,7 @@ export function AuthForm() {
     <div className="mb-6"><div className="text-xs font-bold tracking-[.18em] text-blue-400">GLOBAL FINANCE</div><h1 className="mt-2 text-2xl font-black">{mode === 'login' ? 'Secure Login' : 'Create Account'}</h1><p className="mt-2 text-sm text-slate-400">Secure • Transparent • Digital Finance Platform</p></div>
     <form onSubmit={submit} className="space-y-4">
       {mode === 'register' && <input name="fullName" required placeholder="Full name" className="w-full rounded-xl border border-blue-900/60 bg-[#071427] px-4 py-3 outline-none focus:border-blue-500" />}
+      {mode === 'register' && <input name="mobileNumber" type="tel" inputMode="numeric" autoComplete="tel" required pattern="^\\+91[6-9][0-9]{9}$" placeholder="Mobile number (+91XXXXXXXXXX)" title="Enter a valid Indian mobile number with +91 and 10 digits" className="w-full rounded-xl border border-blue-900/60 bg-[#071427] px-4 py-3 outline-none focus:border-blue-500" />}
       <input name="email" type="email" required placeholder="Email address" className="w-full rounded-xl border border-blue-900/60 bg-[#071427] px-4 py-3 outline-none focus:border-blue-500" />
       <input name="password" type="password" required minLength={mode === 'register' ? 10 : 1} placeholder="Password" className="w-full rounded-xl border border-blue-900/60 bg-[#071427] px-4 py-3 outline-none focus:border-blue-500" />
       {mode === 'register' && <input name="referral" defaultValue={params.get('r') ?? ''} placeholder="Referral code (optional)" className="w-full rounded-xl border border-blue-900/60 bg-[#071427] px-4 py-3 outline-none focus:border-blue-500" />}
