@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   full_name TEXT NOT NULL,
+  mobile_number TEXT,
   referral_code TEXT UNIQUE NOT NULL CHECK (referral_code ~ '^GF[0-9]{6}$'),
   referred_by UUID REFERENCES users(id),
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user','admin')),
@@ -15,6 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_mobile_number ON users(mobile_number) WHERE mobile_number IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
