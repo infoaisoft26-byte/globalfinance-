@@ -6,6 +6,7 @@ import { createSession } from '@/lib/auth';
 
 const schema = z.object({
   fullName: z.string().min(2).max(120),
+  mobileNumber: z.string().regex(/^\+91[6-9][0-9]{9}$/, 'Enter a valid Indian mobile number with +91 and 10 digits'),
   email: z.string().email().max(200),
   password: z.string().min(10).max(200),
   referral: z.string().regex(/^GF[0-9]{6}$/).optional(),
@@ -26,11 +27,8 @@ function configurationError(error: unknown) {
   return (
     message.includes('DATABASE_URL is not configured') ||
     message.includes('AUTH_SECRET must be at least 32 characters') ||
-    code === '42P01' ||
-    code === '3D000' ||
-    code === '28P01' ||
-    code === 'ECONNREFUSED' ||
-    code === 'ENOTFOUND'
+    code === '42P01' || code === '3D000' || code === '28P01' ||
+    code === 'ECONNREFUSED' || code === 'ENOTFOUND'
   );
 }
 
@@ -39,8 +37,9 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid registration data' }, { status: 400 });
 
   try {
-    const { fullName, email, password, referral } = parsed.data;
+    const { fullName, mobileNumber, email, password, referral } = parsed.data;
     const normalizedEmail = email.trim().toLowerCase();
+    const normalizedMobile = mobileNumber.trim();
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const referralCode = await nextReferralCode();
 
@@ -51,10 +50,14 @@ export async function POST(request: Request) {
         if (sponsor.rowCount !== 1) throw new Error('INVALID_REFERRAL');
         referredBy = sponsor.rows[0].id;
       }
+
+      const existingMobile = await client.query('SELECT 1 FROM users WHERE mobile_number=$1 LIMIT 1', [normalizedMobile]);
+      if (existingMobile.rowCount) throw new Error('MOBILE_ALREADY_REGISTERED');
+
       const created = await client.query(
-        `INSERT INTO users (email,password_hash,full_name,referral_code,referred_by)
-         VALUES ($1,$2,$3,$4,$5) RETURNING id,role,referral_code`,
-        [normalizedEmail, passwordHash, fullName.trim(), referralCode, referredBy]
+        `INSERT INTO users (email,password_hash,full_name,mobile_number,referral_code,referred_by)
+         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,role,referral_code`,
+        [normalizedEmail, passwordHash, fullName.trim(), normalizedMobile, referralCode, referredBy]
       );
       const id = created.rows[0].id;
       await client.query(`INSERT INTO wallets (user_id,wallet_type) VALUES ($1,'fund'),($1,'income')`, [id]);
@@ -67,6 +70,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === 'INVALID_REFERRAL') {
       return NextResponse.json({ error: 'Referral code not found' }, { status: 400 });
+    }
+    if (error instanceof Error && error.message === 'MOBILE_ALREADY_REGISTERED') {
+      return NextResponse.json({ error: 'This mobile number is already registered' }, { status: 409 });
     }
     if (configurationError(error)) {
       console.error('Registration service configuration error:', error);
