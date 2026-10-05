@@ -27,7 +27,14 @@ export function DashboardShell({ children, userName, referralCode }: { children:
     <div className="min-h-screen lg:grid lg:grid-cols-[280px_1fr]">
       <aside className={`${open ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-[280px] border-r border-blue-900/50 bg-[#071427] p-5 transition-transform lg:static lg:translate-x-0`}>
         <div className="mb-8">
-          <div className="text-xl font-black tracking-[.08em]">GLOBAL FINANCE</div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-400/30 bg-gradient-to-br from-blue-500/25 to-cyan-400/10 text-cyan-300 shadow-lg shadow-blue-950/30" aria-label="Global Finance logo">
+              <svg viewBox="0 0 48 48" className="h-7 w-7" aria-hidden="true">
+                <path d="M24 4 39 10v11c0 10-6.3 18.5-15 23-8.7-4.5-15-13-15-23V10L24 4Z" fill="none" stroke="currentColor" strokeWidth="3"/>
+                <path d="m16 25 5 5 11-12" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="min-w-0 text-xl font-black tracking-[.08em] text-white">GLOBAL FINANCE</div>
           <div className="mt-1 text-xs text-slate-400">Secure • Transparent • Digital Finance Platform</div>
         </div>
         <nav className="space-y-1">
