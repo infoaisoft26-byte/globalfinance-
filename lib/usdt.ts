@@ -60,8 +60,8 @@ export async function verifyUsdtDeposit(txHashInput: string): Promise<VerifiedUs
   const latestBlockRaw = await rpc('eth_blockNumber', []);
   if (typeof latestBlockRaw !== 'string') throw new Error('Latest BSC block number is missing');
   const latestBlock = BigInt(latestBlockRaw);
-  const confirmations = latestBlock >= blockNumber ? latestBlock - blockNumber + 1n : 0n;
-  if (confirmations < 12n) throw new Error(`Waiting for confirmations: ${confirmations}/12`);
+  const confirmations = latestBlock >= blockNumber ? latestBlock - blockNumber + BigInt(1) : BigInt(0);
+  if (confirmations < BigInt(12)) throw new Error(`Waiting for confirmations: ${confirmations.toString()}/12`);
 
   const matching = (receipt.logs || []).filter((log: any) => {
     return String(log.address || '').toLowerCase() === contract &&
