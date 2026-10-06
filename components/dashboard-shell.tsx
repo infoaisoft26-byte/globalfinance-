@@ -34,8 +34,11 @@ export function DashboardShell({ children, userName, referralCode }: { children:
                 <path d="m16 25 5 5 11-12" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
-            <div className="min-w-0 text-xl font-black tracking-[.08em] text-white">GLOBAL FINANCE</div>
-          <div className="mt-1 text-xs text-slate-400">Secure • Transparent • Digital Finance Platform</div>
+            <div className="min-w-0">
+              <div className="text-xl font-black tracking-[.08em] text-white">GLOBAL FINANCE</div>
+              <div className="mt-1 text-xs text-slate-400">Secure • Transparent • Digital Finance Platform</div>
+            </div>
+          </div>
         </div>
         <nav className="space-y-1">
           {groups.map(([label, href]) => <Link key={href} href={href} onClick={() => setOpen(false)} className="block rounded-xl px-3 py-2.5 text-sm text-slate-300 hover:bg-blue-500/10 hover:text-white">{label}</Link>)}
