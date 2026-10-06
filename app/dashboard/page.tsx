@@ -4,8 +4,6 @@ import { db } from '@/lib/db';
 import { DashboardShell } from '@/components/dashboard-shell';
 
 const money = (paise: number | string | bigint) => `₹ ${(Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const usdt = (raw: number | string | bigint) => { const value = typeof raw === 'bigint' ? raw : BigInt(String(raw || 0)); const whole = value / 1000000000000000000n; const fraction = (value % 1000000000000000000n).toString().padStart(18,'0').replace(/0+$/,''); return `USDT ${whole.toString()}${fraction ? `.${fraction}` : ''}`; };
-
 type BreakdownRow = [string, number | string | bigint | null | undefined];
 
 export default async function DashboardPage() {
@@ -56,7 +54,7 @@ export default async function DashboardPage() {
 
   const cards = [
     ['Basic Package', money(packageMap.basic ?? 0), 'gf-blue'], ['FD Package', money(packageMap.fd ?? 0), 'gf-cyan'],
-    ['Available Fund', usdt(walletMap['fund:USDT'] ?? 0), 'gf-blue'], ['Available Balance', money(walletMap['income:INR'] ?? 0), 'gf-green'],
+    ['Available Fund', money(walletMap['fund:USDT'] ?? 0), 'gf-blue'], ['Available Balance', money(walletMap['income:INR'] ?? 0), 'gf-green'],
     ['Total Income', money(i.total_income ?? 0), 'gf-green'], ['Total Withdrawal', money(i.total_withdrawal ?? 0), 'gf-red'],
   ];
   const basic: BreakdownRow[] = [
