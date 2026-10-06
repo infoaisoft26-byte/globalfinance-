@@ -85,72 +85,7 @@ CREATE TABLE IF NOT EXISTS kyc_submissions (
 CREATE TABLE IF NOT EXISTS usdt_deposits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  tx_hash TEXT UNIQUE NOT NULL CHECK (tx_hash ~ '^0x[0-9a-fA-F]{64} ON kyc_submissions(status, submitted_at DESC);
-CREATE INDEX IF NOT EXISTS idx_kyc_submissions_user ON kyc_submissions(user_id, submitted_at DESC);
-
-CREATE TABLE IF NOT EXISTS support_tickets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id),
-  subject TEXT NOT NULL,
-  message TEXT NOT NULL,
-  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low','normal','high','urgent')),
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','in_progress','resolved','closed')),
-  assigned_admin_id UUID REFERENCES users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS support_ticket_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  ticket_id UUID NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
-  author_user_id UUID NOT NULL REFERENCES users(id),
-  body TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON support_ticket_messages(ticket_id, created_at ASC);
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id BIGSERIAL PRIMARY KEY,
-  actor_user_id UUID REFERENCES users(id),
-  action TEXT NOT NULL,
-  entity_type TEXT NOT NULL,
-  entity_id TEXT,
-  payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
-
-CREATE OR REPLACE FUNCTION prevent_ledger_mutation() RETURNS trigger AS $$
-BEGIN
-  RAISE EXCEPTION 'ledger records are immutable';
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS ledger_transactions_no_update ON ledger_transactions;
-CREATE TRIGGER ledger_transactions_no_update
-BEFORE UPDATE OR DELETE ON ledger_transactions
-FOR EACH ROW EXECUTE FUNCTION prevent_ledger_mutation();
-
-DROP TRIGGER IF EXISTS ledger_entries_no_update ON ledger_entries;
-CREATE TRIGGER ledger_entries_no_update
-BEFORE UPDATE OR DELETE ON ledger_entries
-FOR EACH ROW EXECUTE FUNCTION prevent_ledger_mutation();
-
-CREATE OR REPLACE FUNCTION prevent_audit_log_mutation() RETURNS trigger AS $$
-BEGIN
-  RAISE EXCEPTION 'audit records are immutable';
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS audit_logs_no_update ON audit_logs;
-CREATE TRIGGER audit_logs_no_update
-BEFORE UPDATE OR DELETE ON audit_logs
-FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_mutation();
-),
+  tx_hash TEXT UNIQUE NOT NULL CHECK (tx_hash ~ '^0x[0-9a-fA-F]{64}$'),
   from_address TEXT NOT NULL,
   to_address TEXT NOT NULL,
   amount_base_units BIGINT NOT NULL CHECK (amount_base_units > 0),
