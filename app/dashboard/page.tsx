@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { DashboardShell } from '@/components/dashboard-shell';
 
 const money = (paise: number | string | bigint) => `₹ ${(Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const usdt = (raw: number | string | bigint) => { const value = typeof raw === 'bigint' ? raw : BigInt(String(raw || 0)); const whole = value / 1000000000000000000n; const fraction = (value % 1000000000000000000n).toString().padStart(18,'0').replace(/0+$/,''); return `USDT ${whole.toString()}${fraction ? `.${fraction}` : ''}`; };
 
 type BreakdownRow = [string, number | string | bigint | null | undefined];
 
@@ -17,10 +18,10 @@ export default async function DashboardPage() {
 
   const [wallets, packages, teams, income] = await Promise.all([
     db.query(`
-      SELECT w.wallet_type,
+      SELECT w.wallet_type, w.currency,
         COALESCE(SUM(CASE WHEN e.direction='credit' THEN e.amount_paise ELSE -e.amount_paise END),0)::bigint AS balance
       FROM wallets w LEFT JOIN ledger_entries e ON e.wallet_id=w.id
-      WHERE w.user_id=$1 GROUP BY w.wallet_type`, [session.userId]),
+      WHERE w.user_id=$1 GROUP BY w.wallet_type, w.currency`, [session.userId]),
     db.query(`SELECT p.package_type, COALESCE(SUM(a.amount_paise),0)::bigint total
       FROM packages p LEFT JOIN package_activations a ON a.package_id=p.id AND a.user_id=$1 AND a.status='active'
       GROUP BY p.package_type`, [session.userId]),
@@ -48,14 +49,14 @@ export default async function DashboardPage() {
       WHERE w.user_id=$1 AND w.wallet_type='income' AND lt.status='posted'`, [session.userId]),
   ]);
 
-  const walletMap = Object.fromEntries(wallets.rows.map((r) => [r.wallet_type, r.balance]));
+  const walletMap = Object.fromEntries(wallets.rows.map((r) => [`${r.wallet_type}:${r.currency}`, r.balance]));
   const packageMap = Object.fromEntries(packages.rows.map((r) => [r.package_type, r.total]));
   const team = teams.rows[0] ?? { direct_team: 0, total_team: 0 };
   const i = income.rows[0] ?? {};
 
   const cards = [
     ['Basic Package', money(packageMap.basic ?? 0), 'gf-blue'], ['FD Package', money(packageMap.fd ?? 0), 'gf-cyan'],
-    ['Available Fund', money(walletMap.fund ?? 0), 'gf-blue'], ['Available Balance', money(walletMap.income ?? 0), 'gf-green'],
+    ['Available Fund', usdt(walletMap['fund:USDT'] ?? 0), 'gf-blue'], ['Available Balance', money(walletMap['income:INR'] ?? 0), 'gf-green'],
     ['Total Income', money(i.total_income ?? 0), 'gf-green'], ['Total Withdrawal', money(i.total_withdrawal ?? 0), 'gf-red'],
   ];
   const basic: BreakdownRow[] = [
