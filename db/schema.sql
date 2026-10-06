@@ -23,10 +23,12 @@ CREATE TABLE IF NOT EXISTS wallets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   wallet_type TEXT NOT NULL CHECK (wallet_type IN ('fund','income')),
-  currency CHAR(3) NOT NULL DEFAULT 'INR',
+  currency VARCHAR(8) NOT NULL DEFAULT 'INR',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE(user_id, wallet_type, currency)
 );
+
+ALTER TABLE wallets ALTER COLUMN currency TYPE VARCHAR(8);
 
 CREATE TABLE IF NOT EXISTS ledger_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
