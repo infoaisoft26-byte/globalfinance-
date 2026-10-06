@@ -77,11 +77,10 @@ export async function verifyUsdtDeposit(txHashInput: string): Promise<VerifiedUs
   })).filter((transfer: { toAddress: string }) => transfer.toAddress === destination);
 
   if (transfers.length === 0) throw new Error('No USDT transfer to the configured deposit wallet was found');
-
   if (transfers.length > 1) throw new Error('Multiple matching USDT transfers found; contact support before crediting');
 
   const transfer = transfers[0];
-  if (transfer.amountBaseUnits <= 0n) throw new Error('USDT transfer amount must be greater than zero');
+  if (transfer.amountBaseUnits <= BigInt(0)) throw new Error('USDT transfer amount must be greater than zero');
 
   return {
     txHash,
@@ -95,7 +94,8 @@ export async function verifyUsdtDeposit(txHashInput: string): Promise<VerifiedUs
 
 export function formatUsdt(baseUnits: bigint | string | number) {
   const raw = typeof baseUnits === 'bigint' ? baseUnits : BigInt(String(baseUnits || 0));
-  const whole = raw / 10n ** 18n;
-  const fraction = (raw % 10n ** 18n).toString().padStart(18, '0').replace(/0+$/, '');
+  const scale = BigInt(10) ** BigInt(18);
+  const whole = raw / scale;
+  const fraction = (raw % scale).toString().padStart(18, '0').replace(/0+$/, '');
   return fraction ? `${whole.toString()}.${fraction}` : whole.toString();
 }
