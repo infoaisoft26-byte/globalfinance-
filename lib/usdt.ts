@@ -20,7 +20,7 @@ function normalizeTxHash(value: string) {
   return v;
 }
 
-async function rpc(method: string, params: unknown[]) {
+async function rpc(method: string, params: unknown[]): Promise<unknown> {
   const response = await fetch(required('BSC_RPC_URL'), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -57,7 +57,9 @@ export async function verifyUsdtDeposit(txHashInput: string): Promise<VerifiedUs
   if (receipt.status !== '0x1') throw new Error('Blockchain transaction failed');
 
   const blockNumber = BigInt(receipt.blockNumber);
-  const latestBlock = BigInt(await rpc('eth_blockNumber', []));
+  const latestBlockRaw = await rpc('eth_blockNumber', []);
+  if (typeof latestBlockRaw !== 'string') throw new Error('Latest BSC block number is missing');
+  const latestBlock = BigInt(latestBlockRaw);
   const confirmations = latestBlock >= blockNumber ? latestBlock - blockNumber + 1n : 0n;
   if (confirmations < 12n) throw new Error(`Waiting for confirmations: ${confirmations}/12`);
 
