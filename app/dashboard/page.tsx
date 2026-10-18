@@ -29,7 +29,7 @@ export default async function DashboardPage() {
       UNION ALL SELECT u.id, t.depth+1 FROM users u JOIN team t ON u.referred_by=t.id
     ) SELECT COUNT(*) FILTER (WHERE depth=1)::int direct_team, COUNT(*)::int total_team FROM team`, [session.userId]),
     db.query(`SELECT
-      id, package_id, amount_paise, cap_amount_paise, credited_total_paise,
+      id, package_id, amount_paise, cap_amount_paise, credited_total_paise, verified_deposit_id,
       cap_multiple, cap_reconciled, status, activated_at, completed_at, completion_reason
       FROM package_activations
       WHERE user_id=$1
@@ -97,22 +97,23 @@ export default async function DashboardPage() {
         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">5X limit</span>
       </div>
       {cycles.length === 0 ? <p className="mt-4 text-sm text-slate-500">No investment cycles found yet. Your cap progress will appear here after an investment is verified and activated.</p> : <div className="mt-4 space-y-4">
-        {cycles.map((cycle: { id: string; amount_paise: number | string; cap_amount_paise: number | string | null; credited_total_paise: number | string; cap_multiple: number; cap_reconciled: boolean; status: string; activated_at: string | Date | null; completed_at: string | Date | null; completion_reason: string | null }) => {
+        {cycles.map((cycle: { id: string; amount_paise: number | string; cap_amount_paise: number | string | null; credited_total_paise: number | string; verified_deposit_id: string | null; cap_multiple: number; cap_reconciled: boolean; status: string; activated_at: string | Date | null; completed_at: string | Date | null; completion_reason: string | null }) => {
           const cap = Number(cycle.cap_amount_paise ?? 0);
           const counted = Number(cycle.credited_total_paise ?? 0);
           const progress = cap > 0 ? Math.min(100, Math.max(0, counted / cap * 100)) : 0;
           const remaining = Math.max(0, cap - counted);
+          const cycleMoney = cycle.verified_deposit_id ? usdtMoney : money;
           const label = cycle.status === 'completed' || cycle.status === 'matured' ? 'Completed' : cycle.status === 'active' && !cycle.cap_reconciled ? 'Admin Review' : cycle.status === 'active' ? 'Active' : cycle.status;
           const badgeClass = label === 'Active' ? 'bg-emerald-50 text-emerald-700' : label === 'Completed' ? 'bg-slate-100 text-slate-700' : 'bg-amber-50 text-amber-700';
           return <div key={cycle.id} className="rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div><div className="font-semibold">Investment cycle</div><div className="mt-1 text-xs text-slate-500">Invested: {usdtMoney(cycle.amount_paise)} · Maximum cap: {usdtMoney(cycle.cap_amount_paise)}</div></div>
+              <div><div className="font-semibold">Investment cycle</div><div className="mt-1 text-xs text-slate-500">Invested: {cycleMoney(cycle.amount_paise)} · Maximum cap: {cycleMoney(cycle.cap_amount_paise)}</div></div>
               <span className={`rounded-full px-3 py-1 text-xs font-bold ${badgeClass}`}>{label}</span>
             </div>
             {cycle.cap_reconciled ? <>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div><div className="gf-label">Counted toward cap</div><div className="mt-1 font-bold">{usdtMoney(counted)}</div></div>
-                <div><div className="gf-label">Cap remaining</div><div className="mt-1 font-bold">{usdtMoney(remaining)}</div></div>
+                <div><div className="gf-label">Counted toward cap</div><div className="mt-1 font-bold">{cycleMoney(counted)}</div></div>
+                <div><div className="gf-label">Cap remaining</div><div className="mt-1 font-bold">{cycleMoney(remaining)}</div></div>
                 <div><div className="gf-label">Progress</div><div className="mt-1 font-bold">{progress.toFixed(1)}%</div></div>
               </div>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} /></div>
