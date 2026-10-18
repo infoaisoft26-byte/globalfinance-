@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   if (userResult.rowCount !== 1) redirect('/');
   const user = userResult.rows[0];
 
-  const [wallets, packages, teams, income] = await Promise.all([
+  const [wallets, packages, teams, income, investmentState] = await Promise.all([
     db.query(`
       SELECT w.wallet_type, w.currency,
         COALESCE(SUM(CASE WHEN e.direction='credit' THEN e.amount_paise ELSE -e.amount_paise END),0)::bigint AS balance
@@ -27,6 +27,11 @@ export default async function DashboardPage() {
       SELECT id, 1 depth FROM users WHERE referred_by=$1
       UNION ALL SELECT u.id, t.depth+1 FROM users u JOIN team t ON u.referred_by=t.id
     ) SELECT COUNT(*) FILTER (WHERE depth=1)::int direct_team, COUNT(*)::int total_team FROM team`, [session.userId]),
+    db.query(`SELECT
+      COUNT(*) FILTER (WHERE status='active' AND cap_reconciled=TRUE)::int AS active_cycles,
+      COUNT(*) FILTER (WHERE status='active' AND cap_reconciled=FALSE)::int AS review_cycles,
+      COUNT(*) FILTER (WHERE status IN ('completed','matured'))::int AS completed_cycles
+      FROM package_activations WHERE user_id=$1`, [session.userId]),
     db.query(`SELECT
       COALESCE(SUM(CASE WHEN lt.transaction_type='joining_bonus' THEN le.amount_paise ELSE 0 END),0)::bigint joining_bonus,
       COALESCE(SUM(CASE WHEN lt.transaction_type='basic_referral' THEN le.amount_paise ELSE 0 END),0)::bigint basic_referral,
@@ -51,8 +56,16 @@ export default async function DashboardPage() {
   const packageMap = Object.fromEntries(packages.rows.map((r) => [r.package_type, r.total]));
   const team = teams.rows[0] ?? { direct_team: 0, total_team: 0 };
   const i = income.rows[0] ?? {};
+  const inv = investmentState.rows[0] ?? { active_cycles: 0, review_cycles: 0, completed_cycles: 0 };
+  const investmentStatus = Number(inv.active_cycles) > 0
+    ? 'Active'
+    : Number(inv.review_cycles) > 0
+      ? 'Admin Review'
+      : 'Inactive';
 
   const cards = [
+    ['Investment Status', investmentStatus, Number(inv.active_cycles) > 0 ? 'gf-green' : 'gf-red'],
+
     ['Basic Package', money(packageMap.basic ?? 0), 'gf-blue'], ['FD Package', money(packageMap.fd ?? 0), 'gf-cyan'],
     ['Available Fund', money(walletMap['fund:USDT'] ?? 0), 'gf-blue'], ['Available Balance', money(walletMap['income:INR'] ?? 0), 'gf-green'],
     ['Total Income', money(i.total_income ?? 0), 'gf-green'], ['Total Withdrawal', money(i.total_withdrawal ?? 0), 'gf-red'],
