@@ -223,6 +223,9 @@ CREATE OR REPLACE FUNCTION gf_reconcile_legacy_activation(
 ) RETURNS VOID AS $$
 DECLARE
   v_activation package_activations%ROWTYPE;
+  v_cycle_count INTEGER;
+  v_unattributed_count BIGINT;
+  v_ledger_paid BIGINT;
 BEGIN
   IF p_historical_paid_paise < 0 THEN
     RAISE EXCEPTION 'Historical paid amount cannot be negative';
@@ -251,6 +254,46 @@ BEGIN
     RAISE EXCEPTION 'Investment cap amount is unavailable; manual review required';
   END IF;
 
+  SELECT COUNT(*)::int INTO v_cycle_count
+  FROM package_activations WHERE user_id = v_activation.user_id;
+
+  SELECT COUNT(*) INTO v_unattributed_count
+  FROM ledger_entries le
+  JOIN wallets w ON w.id = le.wallet_id
+  JOIN ledger_transactions lt ON lt.id = le.transaction_id
+  WHERE w.user_id = v_activation.user_id
+    AND le.direction = 'credit' AND lt.status = 'posted'
+    AND lt.transaction_type IN (
+      'basic_roi','basic_level','basic_referral','fd_roi','fd_level','fd_referral',
+      'joining_bonus','salary_income','bonus_income','referral_bonus','level_bonus',
+      'fd_released','principal_return'
+    )
+    AND lt.metadata->>'activationId' IS NULL;
+
+  IF v_cycle_count > 1 AND v_unattributed_count > 0 THEN
+    RAISE EXCEPTION 'Multiple cycles have unattributed historic credits; manual ledger audit is required before reconciliation';
+  END IF;
+
+  SELECT COALESCE(SUM(le.amount_paise), 0)::bigint INTO v_ledger_paid
+  FROM ledger_entries le
+  JOIN wallets w ON w.id = le.wallet_id
+  JOIN ledger_transactions lt ON lt.id = le.transaction_id
+  WHERE w.user_id = v_activation.user_id
+    AND le.direction = 'credit' AND lt.status = 'posted'
+    AND lt.transaction_type IN (
+      'basic_roi','basic_level','basic_referral','fd_roi','fd_level','fd_referral',
+      'joining_bonus','salary_income','bonus_income','referral_bonus','level_bonus',
+      'fd_released','principal_return'
+    )
+    AND (
+      lt.metadata->>'activationId' = p_activation_id::text
+      OR (v_cycle_count = 1 AND lt.metadata->>'activationId' IS NULL)
+    );
+
+  IF p_historical_paid_paise <> v_ledger_paid THEN
+    RAISE EXCEPTION 'Historical amount must exactly match eligible immutable ledger credits (% minor units)', v_ledger_paid;
+  END IF;
+
   UPDATE package_activations
   SET credited_total_paise = p_historical_paid_paise,
       cap_reconciled = TRUE,
@@ -261,7 +304,8 @@ BEGIN
 
   INSERT INTO audit_logs(actor_user_id, action, entity_type, entity_id, payload)
   VALUES (p_admin_id, 'investment.cap.legacy_reconciled', 'package_activation', p_activation_id::text,
-          jsonb_build_object('historicalPaidPaise', p_historical_paid_paise, 'capAmountPaise', v_activation.cap_amount_paise));
+          jsonb_build_object('historicalPaidMinorUnits', p_historical_paid_paise, 'ledgerVerifiedMinorUnits', v_ledger_paid,
+                             'capAmountMinorUnits', v_activation.cap_amount_paise));
 END;
 $$ LANGUAGE plpgsql;
 
