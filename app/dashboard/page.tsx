@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   if (userResult.rowCount !== 1) redirect('/');
   const user = userResult.rows[0];
 
-  const [wallets, packages, teams, income, investmentState] = await Promise.all([
+  const [wallets, packages, teams, investmentState, income] = await Promise.all([
     db.query(`
       SELECT w.wallet_type, w.currency,
         COALESCE(SUM(CASE WHEN e.direction='credit' THEN e.amount_paise ELSE -e.amount_paise END),0)::bigint AS balance
