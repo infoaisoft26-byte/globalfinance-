@@ -413,3 +413,9 @@ BEGIN
   RETURN v_total_credited;
 END;
 $$ LANGUAGE plpgsql;
+
+-- A token amount with 18 decimals can exceed BIGINT even for a small USDT deposit.
+-- NUMERIC preserves the exact on-chain base units without floating-point conversion.
+ALTER TABLE usdt_deposits
+  ALTER COLUMN amount_base_units TYPE NUMERIC(78,0)
+  USING amount_base_units::NUMERIC(78,0);
