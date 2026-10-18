@@ -11,13 +11,8 @@ const schema = z.object({
   password: z.string().min(10).max(200),
   referral: z.string().regex(/^GF[0-9]{6}$/).optional(),
 });
-const START_AFTER = 200;
+const FIRST_ID = 201;
 const counterRef = firestore.collection('_system').doc('referralSequence');
-function numericReferral(value: unknown): number {
-  if (typeof value !== 'string') return 0;
-  const match = /^GF([0-9]{6})$/.exec(value);
-  return match ? Number(match[1]) : 0;
-}
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
@@ -43,30 +38,31 @@ export async function POST(request: Request) {
       sponsorCode = String(sponsor.get('referralCode') ?? referral);
     }
 
-    const counterSnapshot = await counterRef.get();
-    let existingMaximum = START_AFTER;
-    if (!counterSnapshot.exists) {
-      const existingUsers = await firestore.collection('users').select('referralCode').get();
-      for (const doc of existingUsers.docs) existingMaximum = Math.max(existingMaximum, numericReferral(doc.get('referralCode')));
-    }
-
     const id = firestore.collection('users').doc().id;
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
     const now = new Date();
     let referralCode = '';
     await firestore.runTransaction(async (tx) => {
       const counter = await tx.get(counterRef);
-      const lastIssued = counter.exists ? Number(counter.get('lastIssued') ?? START_AFTER) : existingMaximum;
-      const next = Math.max(START_AFTER, lastIssued) + 1;
-      if (next > 999999) throw new Error('Referral ID sequence exhausted');
-      referralCode = 'GF' + String(next).padStart(6, '0');
+      let candidateNumber = counter.exists ? Number(counter.get('lastIssued') ?? FIRST_ID - 1) + 1 : FIRST_ID;
+      // Skip any legacy/random ID already in use, without changing existing members' IDs.
+      while (candidateNumber <= 999999) {
+        const candidate = 'GF' + String(candidateNumber).padStart(6, '0');
+        const collision = await tx.get(firestore.collection('users').where('referralCode', '==', candidate).limit(1));
+        if (collision.empty) { referralCode = candidate; break; }
+        candidateNumber += 1;
+      }
+      if (!referralCode) throw new Error('Referral ID sequence exhausted');
+
       tx.create(firestore.collection('users').doc(id), {
         email: normalizedEmail, passwordHash, fullName: fullName.trim(), mobileNumber: normalizedMobile,
         referralCode, referredBy: sponsorId, sponsorName, sponsorReferralCode: sponsorCode,
         role: 'user', accountStatus: 'active', kycStatus: 'pending', createdAt: now, updatedAt: now,
       });
-      if (counter.exists) tx.update(counterRef, { lastIssued: next, updatedAt: now });
-      else tx.create(counterRef, { lastIssued: next, startsAt: 'GF000201', updatedAt: now });
+      const issuedNumber = Number(referralCode.slice(2));
+      if (counter.exists) tx.update(counterRef, { lastIssued: issuedNumber, updatedAt: now });
+      else tx.create(counterRef, { lastIssued: issuedNumber, startsAt: 'GF000201', updatedAt: now });
+
       const fund = firestore.collection('wallets').doc();
       const income = firestore.collection('wallets').doc();
       tx.create(fund, { userId: id, walletType: 'fund', currency: 'USDT', createdAt: now });
