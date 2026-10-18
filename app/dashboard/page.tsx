@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { DashboardShell } from '@/components/dashboard-shell';
 
 const money = (paise: number | string | bigint) => `₹ ${(Number(paise || 0) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const usdtMoney = (minor: number | string | bigint | null | undefined) => `${(Number(minor || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`;
 type BreakdownRow = [string, number | string | bigint | null | undefined];
 
 export default async function DashboardPage() {
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
   if (userResult.rowCount !== 1) redirect('/');
   const user = userResult.rows[0];
 
-  const [wallets, packages, teams, investmentState, income] = await Promise.all([
+  const [wallets, packages, teams, investmentState, investmentCycles, income] = await Promise.all([
     db.query(`
       SELECT w.wallet_type, w.currency,
         COALESCE(SUM(CASE WHEN e.direction='credit' THEN e.amount_paise ELSE -e.amount_paise END),0)::bigint AS balance
@@ -27,6 +28,13 @@ export default async function DashboardPage() {
       SELECT id, 1 depth FROM users WHERE referred_by=$1
       UNION ALL SELECT u.id, t.depth+1 FROM users u JOIN team t ON u.referred_by=t.id
     ) SELECT COUNT(*) FILTER (WHERE depth=1)::int direct_team, COUNT(*)::int total_team FROM team`, [session.userId]),
+    db.query(`SELECT
+      id, package_id, amount_paise, cap_amount_paise, credited_total_paise,
+      cap_multiple, cap_reconciled, status, activated_at, completed_at, completion_reason
+      FROM package_activations
+      WHERE user_id=$1
+      ORDER BY created_at DESC
+      LIMIT 20`, [session.userId]),
     db.query(`SELECT
       COUNT(*) FILTER (WHERE status='active' AND cap_reconciled=TRUE)::int AS active_cycles,
       COUNT(*) FILTER (WHERE status='active' AND cap_reconciled=FALSE)::int AS review_cycles,
@@ -57,6 +65,7 @@ export default async function DashboardPage() {
   const team = teams.rows[0] ?? { direct_team: 0, total_team: 0 };
   const i = income.rows[0] ?? {};
   const inv = investmentState.rows[0] ?? { active_cycles: 0, review_cycles: 0, completed_cycles: 0 };
+  const cycles = investmentCycles.rows;
   const investmentStatus = Number(inv.active_cycles) > 0
     ? 'Active'
     : Number(inv.review_cycles) > 0
@@ -82,6 +91,37 @@ export default async function DashboardPage() {
   return <DashboardShell userName={user.full_name} referralCode={user.referral_code}>
     <div className="mb-6"><div className="text-sm text-slate-500">Dashboard / Overview</div><h1 className="mt-1 text-2xl font-black">Welcome, {user.full_name}</h1></div>
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{cards.map(([label, value, cls]) => <div key={label} className="gf-card p-5"><div className="gf-label">{label}</div><div className={`gf-value ${cls}`}>{value}</div></div>)}</section>
+    <section className="mt-6 gf-card p-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div><h2 className="text-lg font-bold">5X Investment Cap</h2><p className="mt-1 text-sm text-slate-500">ROI, referral, level, bonuses and principal return count toward the same cap.</p></div>
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">5X limit</span>
+      </div>
+      {cycles.length === 0 ? <p className="mt-4 text-sm text-slate-500">No investment cycles found yet. Your cap progress will appear here after an investment is verified and activated.</p> : <div className="mt-4 space-y-4">
+        {cycles.map((cycle: { id: string; amount_paise: number | string; cap_amount_paise: number | string | null; credited_total_paise: number | string; cap_multiple: number; cap_reconciled: boolean; status: string; activated_at: string | Date | null; completed_at: string | Date | null; completion_reason: string | null }) => {
+          const cap = Number(cycle.cap_amount_paise ?? 0);
+          const counted = Number(cycle.credited_total_paise ?? 0);
+          const progress = cap > 0 ? Math.min(100, Math.max(0, counted / cap * 100)) : 0;
+          const remaining = Math.max(0, cap - counted);
+          const label = cycle.status === 'completed' || cycle.status === 'matured' ? 'Completed' : cycle.status === 'active' && !cycle.cap_reconciled ? 'Admin Review' : cycle.status === 'active' ? 'Active' : cycle.status;
+          const badgeClass = label === 'Active' ? 'bg-emerald-50 text-emerald-700' : label === 'Completed' ? 'bg-slate-100 text-slate-700' : 'bg-amber-50 text-amber-700';
+          return <div key={cycle.id} className="rounded-xl border border-slate-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><div className="font-semibold">Investment cycle</div><div className="mt-1 text-xs text-slate-500">Invested: {usdtMoney(cycle.amount_paise)} · Maximum cap: {usdtMoney(cycle.cap_amount_paise)}</div></div>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${badgeClass}`}>{label}</span>
+            </div>
+            {cycle.cap_reconciled ? <>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div><div className="gf-label">Counted toward cap</div><div className="mt-1 font-bold">{usdtMoney(counted)}</div></div>
+                <div><div className="gf-label">Cap remaining</div><div className="mt-1 font-bold">{usdtMoney(remaining)}</div></div>
+                <div><div className="gf-label">Progress</div><div className="mt-1 font-bold">{progress.toFixed(1)}%</div></div>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} /></div>
+              {label === 'Completed' && <p className="mt-3 text-sm font-medium text-emerald-700">This investment cycle is complete. A new cycle requires a verified new investment.</p>}
+            </> : <p className="mt-3 text-sm text-amber-700">Your historical income is awaiting admin reconciliation. Further capped credits remain blocked until verified.</p>}
+          </div>;
+        })}
+      </div>}
+    </section>
     <section className="mt-6 grid gap-4 md:grid-cols-2"><div className="gf-card p-5"><div className="gf-label">Direct Team</div><div className="gf-value gf-cyan">{team.direct_team}</div></div><div className="gf-card p-5"><div className="gf-label">Total Team</div><div className="gf-value gf-blue">{team.total_team}</div></div></section>
     <Breakdown title="Basic Income Breakdown" rows={basic}/><Breakdown title="FD Income Breakdown" rows={fd}/>
   </DashboardShell>;
