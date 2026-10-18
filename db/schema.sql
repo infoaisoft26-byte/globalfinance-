@@ -174,6 +174,13 @@ FOR EACH ROW EXECUTE FUNCTION prevent_audit_log_mutation();
 
 -- Investment-cycle 5X cap. Existing cycles are deliberately marked unreconciled:
 -- historical ledger entries cannot be safely attributed to an investment automatically.
+
+-- A token amount with 18 decimals can exceed BIGINT even for a small USDT deposit.
+-- NUMERIC preserves the exact on-chain base units without floating-point conversion.
+ALTER TABLE usdt_deposits
+  ALTER COLUMN amount_base_units TYPE NUMERIC(78,0)
+  USING amount_base_units::NUMERIC(78,0);
+
 ALTER TABLE package_activations
   ADD COLUMN IF NOT EXISTS cap_multiple INTEGER NOT NULL DEFAULT 5,
   ADD COLUMN IF NOT EXISTS cap_amount_paise BIGINT,
@@ -413,9 +420,3 @@ BEGIN
   RETURN v_total_credited;
 END;
 $$ LANGUAGE plpgsql;
-
--- A token amount with 18 decimals can exceed BIGINT even for a small USDT deposit.
--- NUMERIC preserves the exact on-chain base units without floating-point conversion.
-ALTER TABLE usdt_deposits
-  ALTER COLUMN amount_base_units TYPE NUMERIC(78,0)
-  USING amount_base_units::NUMERIC(78,0);
