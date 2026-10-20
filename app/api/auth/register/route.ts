@@ -6,7 +6,7 @@ import { createSession } from '@/lib/auth';
 
 const schema = z.object({
   fullName: z.string().trim().min(2).max(120),
-  mobileNumber: z.string().regex(/^\\+91[6-9][0-9]{9}$/, 'Enter a valid Indian mobile number with +91 and 10 digits'),
+  mobileNumber: z.string().regex(/^\+91[6-9][0-9]{9}$/, 'Enter a valid Indian mobile number with +91 and 10 digits'),
   email: z.string().email().max(200),
   password: z.string().min(10).max(200),
   referral: z.string().regex(/^GF[0-9]{6}$/).optional(),
