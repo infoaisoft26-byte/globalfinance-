@@ -79,8 +79,8 @@ export default async function DashboardPage() {
       WHERE w.user_id=$1 AND w.wallet_type='income' AND lt.status='posted'`, [session.userId]),
   ]);
 
-  const walletMap = Object.fromEntries(wallets.rows.map((r) => [`${r.wallet_type}:${r.currency}`, r.balance]));
-  const packageMap = Object.fromEntries(packages.rows.map((r) => [r.package_type, r.total]));
+  const walletMap = Object.fromEntries(wallets.rows.map((r: { wallet_type: string; currency: string; balance: number | string | bigint }) => [`${r.wallet_type}:${r.currency}`, r.balance]));
+  const packageMap = Object.fromEntries(packages.rows.map((r: { package_type: string; total: number | string | bigint }) => [r.package_type, r.total]));
   const team = teams.rows[0] ?? { direct_team: 0, total_team: 0, members: [] };
   const members = (team.members ?? []) as TeamMember[];
   const i = income.rows[0] ?? {};
