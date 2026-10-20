@@ -6,13 +6,45 @@ import { createSession } from '@/lib/auth';
 
 const schema = z.object({
   fullName: z.string().trim().min(2).max(120),
-  mobileNumber: z.string().regex(/^\+91[6-9][0-9]{9}$/, 'Enter a valid Indian mobile number with +91 and 10 digits'),
+  mobileNumber: z.string().regex(/^\\+91[6-9][0-9]{9}$/, 'Enter a valid Indian mobile number with +91 and 10 digits'),
   email: z.string().email().max(200),
   password: z.string().min(10).max(200),
   referral: z.string().regex(/^GF[0-9]{6}$/).optional(),
 });
 const FIRST_ID = 201;
 const counterRef = firestore.collection('_system').doc('referralSequence');
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character] ?? character);
+}
+
+async function sendRegistrationEmail(email: string, fullName: string, referralCode: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !from) {
+    console.error('[REGISTRATION_EMAIL] Not sent: RESEND_API_KEY or RESEND_FROM_EMAIL is missing');
+    return false;
+  }
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: 'Welcome to Global Finance',
+      text: `Hello ${fullName},\n\nYour Global Finance account has been created successfully.\nYour Member ID: ${referralCode}\n\nFor your security, your password is not included in this email. Keep your login details private.\n\nGlobal Finance\nhttps://globalfinance1.online`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#172033"><h2 style="color:#2563eb">Welcome to Global Finance</h2><p>Hello ${escapeHtml(fullName)},</p><p>Your Global Finance account has been created successfully.</p><p><strong>Member ID:</strong> ${escapeHtml(referralCode)}</p><p>For your security, your password is not included in this email. Keep your login details private.</p><p><a href="https://globalfinance1.online" style="display:inline-block;background:#2563eb;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">Open Global Finance</a></p><p>Regards,<br/>Global Finance Team</p></div>`,
+    }),
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    console.error('[REGISTRATION_EMAIL] Resend rejected email:', response.status, await response.text().catch(() => 'Unable to read provider response'));
+    return false;
+  }
+  return true;
+}
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
@@ -45,7 +77,6 @@ export async function POST(request: Request) {
     await firestore.runTransaction(async (tx) => {
       const counter = await tx.get(counterRef);
       let candidateNumber = counter.exists ? Number(counter.get('lastIssued') ?? FIRST_ID - 1) + 1 : FIRST_ID;
-      // Skip any legacy/random ID already in use, without changing existing members' IDs.
       while (candidateNumber <= 999999) {
         const candidate = 'GF' + String(candidateNumber).padStart(6, '0');
         const collision = await tx.get(firestore.collection('users').where('referralCode', '==', candidate).limit(1));
@@ -53,7 +84,6 @@ export async function POST(request: Request) {
         candidateNumber += 1;
       }
       if (!referralCode) throw new Error('Referral ID sequence exhausted');
-
       tx.create(firestore.collection('users').doc(id), {
         email: normalizedEmail, passwordHash, fullName: fullName.trim(), mobileNumber: normalizedMobile,
         referralCode, referredBy: sponsorId, sponsorName, sponsorReferralCode: sponsorCode,
@@ -62,7 +92,6 @@ export async function POST(request: Request) {
       const issuedNumber = Number(referralCode.slice(2));
       if (counter.exists) tx.update(counterRef, { lastIssued: issuedNumber, updatedAt: now });
       else tx.create(counterRef, { lastIssued: issuedNumber, startsAt: 'GF000201', updatedAt: now });
-
       const fund = firestore.collection('wallets').doc();
       const income = firestore.collection('wallets').doc();
       tx.create(fund, { userId: id, walletType: 'fund', currency: 'USDT', createdAt: now });
@@ -72,8 +101,16 @@ export async function POST(request: Request) {
         payload: { email: normalizedEmail, referralCode, sponsorId, sponsorName }, createdAt: now,
       });
     });
+
+    // Email delivery is best-effort; a provider outage must not undo a successful registration.
+    let emailSent = false;
+    try {
+      emailSent = await sendRegistrationEmail(normalizedEmail, fullName.trim(), referralCode);
+    } catch (emailError) {
+      console.error('[REGISTRATION_EMAIL] Sending failed:', emailError);
+    }
     await createSession({ id, role: 'user' });
-    return NextResponse.json({ ok: true, referralCode, sponsorName, sponsorReferralCode: sponsorCode }, { status: 201 });
+    return NextResponse.json({ ok: true, emailSent, referralCode, sponsorName, sponsorReferralCode: sponsorCode }, { status: 201 });
   } catch (error) {
     console.error('Registration failed:', error);
     return NextResponse.json({ error: 'Registration could not be completed' }, { status: 503 });
