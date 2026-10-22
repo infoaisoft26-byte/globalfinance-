@@ -15,14 +15,56 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; min-height: 100%; background: radial-gradient(circle at top right, rgba(36,131,255,.13), transparent 32%), var(--bg); color: var(--text); }
-body { font-family: Arial, Helvetica, sans-serif; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: radial-gradient(circle at top right, rgba(36,131,255,.13), transparent 32%), var(--bg);
+  color: var(--text);
+}
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
 a { color: inherit; text-decoration: none; }
-button, input { font: inherit; }
-.gf-card { background: linear-gradient(180deg, rgba(16,36,64,.92), rgba(8,23,43,.92)); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 16px 42px rgba(0,0,0,.18); }
-.gf-label { color: var(--muted); font-size: .8rem; letter-spacing: .02em; }
-.gf-value { font-size: 1.35rem; font-weight: 800; margin-top: .45rem; }
-.gf-blue { color: #67a8ff; }
-.gf-green { color: var(--green); }
-.gf-red { color: var(--red); }
-.gf-cyan { color: var(--cyan); }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid #3978e8; outline-offset: 2px; }
+
+.gf-card {
+  min-width: 0;
+  color: #102447;
+  background: #ffffff;
+  border: 1px solid #d5dfec;
+  border-radius: 18px;
+  box-shadow: 0 5px 20px rgba(16, 36, 71, .07);
+}
+.gf-label {
+  color: #334155;
+  font-size: .95rem;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.gf-value {
+  overflow-wrap: anywhere;
+  color: #102447;
+  font-size: clamp(1.2rem, 2.2vw, 1.65rem);
+  line-height: 1.4;
+  font-weight: 800;
+  margin-top: .45rem;
+}
+.gf-blue { color: #1746a2; }
+.gf-green { color: #087443; }
+.gf-red { color: #b42336; }
+.gf-cyan { color: #1459a8; }
+
+@media (max-width: 639px) {
+  body { font-size: 16px; }
+  .gf-card { border-radius: 15px; }
+  .gf-card.p-5 { padding: 1rem; }
+  .gf-quick-actions a { font-size: .82rem; line-height: 1.35; }
+  .gf-label { font-size: .9rem; }
+  .gf-value { font-size: 1.2rem; }
+  table { font-size: .85rem; }
+}
