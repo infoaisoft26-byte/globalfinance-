@@ -5,7 +5,6 @@ import { useState } from 'react';
 
 const groups = [
   ['Dashboard', '/dashboard'],
-  ['Download Brochure', '/brochure'],
   ['Recharge', '/recharge'],
   ['Basic Package', '/packages/basic'],
   ['FD Package', '/packages/fd'],
